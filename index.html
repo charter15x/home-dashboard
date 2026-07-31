@@ -203,6 +203,16 @@
     @media (max-width: 500px) {
       .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
     }
+
+    .sync-banner {
+      display: none;
+      align-items: center; gap: 1rem; flex-wrap: wrap;
+      background: var(--surface); border: 1px solid var(--accent);
+      border-radius: var(--radius); padding: .9rem 1.2rem;
+      margin: -1.5rem 0 1.5rem; font-size: .85rem; color: var(--text);
+    }
+    .sync-banner.show { display: flex; }
+    .sync-banner .btn { padding: .4rem .9rem; font-size: .8rem; }
   </style>
 </head>
 <body>
@@ -226,6 +236,11 @@
     </button>
   </div>
 </header>
+
+<div class="sync-banner" id="sync-banner">
+  Este dispositivo tiene tarjetas guardadas localmente, pero el servidor aún no tiene ninguna.
+  <button class="btn btn-primary" onclick="seedServer()">Subir estas tarjetas al servidor</button>
+</div>
 
 <p class="section-label">Mis aplicaciones</p>
 <div class="grid" id="grid"></div>
@@ -274,21 +289,87 @@
     { name: 'Twilio',      url: 'https://www.twilio.com/login',                      desc: 'Mensajería y comunicaciones',       icon: '📡', color: '#f22f46' },
   ];
 
+  const API_URL   = 'https://portal.clinicaderodillas.net/api/home-cards';
+  const TOKEN_KEY = 'home-dashboard-token';
+
   let cards = [];
   let editMode = false;
   let editIndex = null;       // null = nuevo, number = editar existente
   let selected = { emoji: EMOJIS[0], color: COLORS[0] };
+  let serverHasCards = true;  // se ajusta tras el primer GET
 
   // ── Drag state ──
   let dragSrc = null;
 
-  function load() {
-    try { cards = JSON.parse(localStorage.getItem('home-cards') || 'null') || DEFAULTS; }
-    catch { cards = DEFAULTS; }
-    render();
+  function localCards() {
+    try { return JSON.parse(localStorage.getItem('home-cards') || 'null') || DEFAULTS; }
+    catch { return DEFAULTS; }
   }
 
-  function persist() { localStorage.setItem('home-cards', JSON.stringify(cards)); }
+  async function load() {
+    cards = localCards();
+    render();
+
+    try {
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      if (data.cards && data.cards.length) {
+        cards = data.cards;
+        serverHasCards = true;
+        localStorage.setItem('home-cards', JSON.stringify(cards));
+      } else {
+        serverHasCards = false;
+      }
+    } catch {
+      // sin conexión: seguimos con la copia local
+    }
+    render();
+    updateSyncBanner();
+  }
+
+  function persist() {
+    localStorage.setItem('home-cards', JSON.stringify(cards));
+    render();
+    pushToServer();
+  }
+
+  function getToken() {
+    let token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      token = prompt('Token de sincronización (una sola vez por dispositivo):');
+      if (token) localStorage.setItem(TOKEN_KEY, token);
+    }
+    return token;
+  }
+
+  async function pushToServer(cardsOverride) {
+    const token = getToken();
+    if (!token) return;
+    try {
+      const res = await fetch(API_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-home-dashboard-token': token },
+        body: JSON.stringify(cardsOverride || cards),
+      });
+      if (res.status === 401) {
+        alert('Token incorrecto. Se pedirá de nuevo en el próximo cambio.');
+        localStorage.removeItem(TOKEN_KEY);
+        return;
+      }
+      serverHasCards = true;
+      updateSyncBanner();
+    } catch {
+      // sin conexión: el cambio queda local, se reintentará en el próximo guardado
+    }
+  }
+
+  function updateSyncBanner() {
+    document.getElementById('sync-banner').classList.toggle('show', !serverHasCards && cards.length > 0);
+  }
+
+  function seedServer() {
+    pushToServer(cards);
+  }
 
   function esc(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -392,7 +473,6 @@
             const moved = cards.splice(fromIdx, 1)[0];
             cards.splice(toIdx, 0, moved);
             persist();
-            render();
           }
         });
       }
@@ -415,7 +495,6 @@
     if (!confirm(`¿Eliminar "${cards[idx].name}"?`)) return;
     cards.splice(idx, 1);
     persist();
-    render();
   }
 
   // ── Modal: add ──
@@ -472,7 +551,6 @@
     }
     persist();
     closeModal();
-    render();
   }
 
   document.getElementById('search').addEventListener('input', render);
