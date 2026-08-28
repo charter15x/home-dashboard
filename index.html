@@ -213,9 +213,93 @@
     }
     .sync-banner.show { display: flex; }
     .sync-banner .btn { padding: .4rem .9rem; font-size: .8rem; }
+
+    /* ── Lock screen (login) ── */
+    #app.locked { display: none; }
+    .lock-overlay {
+      position: fixed; inset: 0; background: var(--bg);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200; padding: 1.5rem;
+    }
+    .lock-overlay.hidden { display: none; }
+    .lock-box {
+      width: min(360px, 100%); text-align: center;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 2.2rem 1.8rem;
+    }
+    .lock-box .brand-icon { width: 52px; height: 52px; font-size: 1.6rem; margin: 0 auto 1.1rem; }
+    .lock-box h1 { font-size: 1.15rem; margin-bottom: .35rem; }
+    .lock-box p { font-size: .82rem; color: var(--muted); margin-bottom: 1.4rem; }
+    .lock-box input {
+      width: 100%; padding: .65rem .9rem; margin-bottom: .9rem;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-size: .95rem; text-align: center;
+      outline: none; transition: border-color .2s;
+    }
+    .lock-box input:focus { border-color: var(--accent); }
+    .lock-box .btn { width: 100%; }
+    .lock-error {
+      min-height: 1.1rem; font-size: .78rem; color: var(--danger); margin-top: .8rem;
+    }
+
+    /* ── Vault (contraseñas) ── */
+    .card.vault-card .card-name { display: flex; align-items: center; gap: .4rem; }
+    .vault-count {
+      font-size: .68rem; font-weight: 700; color: var(--muted);
+      background: var(--surface2); border-radius: 999px; padding: .1rem .5rem;
+    }
+
+    .vault-modal { width: min(480px, 92vw); }
+    .vault-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.2rem; }
+    .vault-modal-header h2 { margin: 0; }
+    .btn-close {
+      width: 30px; height: 30px; border-radius: 8px; border: none; background: var(--surface2);
+      color: var(--muted); cursor: pointer; font-size: 1rem; line-height: 1;
+    }
+    .btn-close:hover { color: var(--text); }
+
+    .account-row {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+      padding: .8rem .9rem; margin-bottom: .7rem;
+    }
+    .account-row-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: .55rem; }
+    .account-label { font-size: .85rem; font-weight: 700; }
+    .account-row-actions { display: flex; gap: 4px; }
+    .account-field { display: flex; align-items: center; gap: .4rem; margin-top: .35rem; }
+    .account-field label { width: 62px; flex: none; font-size: .7rem; color: var(--muted); }
+    .account-field .value {
+      flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .82rem; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 6px; padding: .35rem .55rem; overflow: hidden; text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .icon-btn {
+      width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--surface); color: var(--muted); cursor: pointer; flex: none;
+      display: flex; align-items: center; justify-content: center; font-size: .8rem; transition: all .15s;
+    }
+    .icon-btn:hover { color: var(--text); border-color: var(--accent2); }
+    .icon-btn.copied { color: #22c55e; border-color: #22c55e; }
+    .empty-hint { font-size: .82rem; color: var(--muted); text-align: center; padding: 1rem 0; }
+
+    .pw-gen-row { display: flex; gap: .5rem; }
+    .pw-gen-row input { flex: 1; }
   </style>
 </head>
 <body>
+
+<div class="lock-overlay" id="lock-overlay">
+  <div class="lock-box">
+    <div class="brand-icon">🔒</div>
+    <h1>Panel de Control</h1>
+    <p>Ingresa la contraseña maestra para continuar</p>
+    <input id="lock-password" type="password" placeholder="Contraseña maestra" autocomplete="current-password" />
+    <button class="btn btn-primary" id="lock-btn" onclick="tryUnlock()">Entrar</button>
+    <p class="lock-error" id="lock-error"></p>
+  </div>
+</div>
+
+<div id="app" class="locked">
 
 <header>
   <div class="brand">
@@ -244,6 +328,83 @@
 
 <p class="section-label">Mis aplicaciones</p>
 <div class="grid" id="grid"></div>
+
+<p class="section-label">🔐 Contraseñas</p>
+<div class="grid" id="vault-grid"></div>
+
+</div><!-- /#app -->
+
+<!-- Modal: ver cuentas de un sitio del vault -->
+<div class="modal-overlay" id="vault-view-modal">
+  <div class="modal vault-modal">
+    <div class="vault-modal-header">
+      <h2 id="vv-title">Sitio</h2>
+      <button class="btn-close" onclick="closeVaultView()">✕</button>
+    </div>
+    <div id="vv-accounts"></div>
+    <div class="modal-actions" style="justify-content: space-between;">
+      <button class="btn btn-ghost" onclick="openAccountModal(null)">+ Agregar cuenta</button>
+      <button class="btn btn-ghost" onclick="openVaultSiteModal(currentVaultId)">Editar sitio</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: agregar / editar sitio del vault -->
+<div class="modal-overlay" id="vault-site-modal">
+  <div class="modal">
+    <h2 id="vs-title">Agregar sitio</h2>
+    <div class="field">
+      <label>Nombre del sitio o programa</label>
+      <input id="vs-name" type="text" placeholder="Ej. Railway" />
+    </div>
+    <div class="field">
+      <label>URL (opcional)</label>
+      <input id="vs-url" type="url" placeholder="https://..." />
+    </div>
+    <div class="field">
+      <label>Icono</label>
+      <div class="emoji-grid" id="vs-emoji-grid"></div>
+    </div>
+    <div class="field">
+      <label>Color</label>
+      <div class="colors" id="vs-color-grid"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="vs-delete" onclick="deleteVaultSite()">Eliminar sitio</button>
+      <button class="btn btn-primary" onclick="saveVaultSite()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: agregar / editar cuenta -->
+<div class="modal-overlay" id="account-modal">
+  <div class="modal">
+    <h2 id="am-title">Agregar cuenta</h2>
+    <div class="field">
+      <label>Etiqueta (ej. "Cuenta principal", "Recepción")</label>
+      <input id="am-label" type="text" placeholder="Etiqueta" />
+    </div>
+    <div class="field">
+      <label>Usuario / correo</label>
+      <input id="am-username" type="text" placeholder="usuario@correo.com" />
+    </div>
+    <div class="field">
+      <label>Contraseña</label>
+      <div class="pw-gen-row">
+        <input id="am-password" type="text" placeholder="Contraseña" />
+        <button class="icon-btn" title="Generar contraseña" onclick="generatePassword()">🎲</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Notas (opcional)</label>
+      <input id="am-notes" type="text" placeholder="Notas" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeAccountModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveAccount()">Guardar</button>
+    </div>
+  </div>
+</div>
 
 <!-- Modal agregar / editar -->
 <div class="modal-overlay" id="modal">
@@ -290,6 +451,8 @@
   ];
 
   const API_URL   = 'https://portal.clinicaderodillas.net/api/home-cards';
+  const VAULT_LOGIN_URL = 'https://portal.clinicaderodillas.net/api/home-vault/login';
+  const VAULT_URL       = 'https://portal.clinicaderodillas.net/api/home-vault';
   const TOKEN_KEY = 'home-dashboard-token';
 
   let cards = [];
@@ -297,6 +460,16 @@
   let editIndex = null;       // null = nuevo, number = editar existente
   let selected = { emoji: EMOJIS[0], color: COLORS[0] };
   let serverHasCards = true;  // se ajusta tras el primer GET
+
+  // ── Vault (contraseñas) ──
+  // El token de sesión vive solo en memoria: se pierde al recargar la
+  // página a propósito, así siempre se vuelve a pedir la contraseña maestra.
+  let vaultToken = null;
+  let vaultEntries = [];
+  let currentVaultId = null;   // sitio abierto en el modal de "ver cuentas"
+  let editingAccountId = null; // null = nueva cuenta, id = editar existente
+  let vsEditId = null;         // null = nuevo sitio, id = editar existente
+  let vsSelected = { emoji: '🔑', color: COLORS[0] };
 
   // ── Drag state ──
   let dragSrc = null;
@@ -555,9 +728,276 @@
 
   document.getElementById('search').addEventListener('input', render);
   document.getElementById('modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+  document.getElementById('vault-view-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeVaultView(); });
+  document.getElementById('vault-site-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeVaultSiteModal(); });
+  document.getElementById('account-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeAccountModal(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeModal(); closeVaultView(); closeVaultSiteModal(); closeAccountModal(); }
+  });
 
-  load();
+  // ═══════════════════ Login / desbloqueo ═══════════════════
+  async function tryUnlock() {
+    const pwd = document.getElementById('lock-password').value;
+    const errEl = document.getElementById('lock-error');
+    const btn = document.getElementById('lock-btn');
+    if (!pwd) return;
+    errEl.textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'Verificando...';
+    try {
+      const res = await fetch(VAULT_LOGIN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pwd }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        errEl.textContent = data.error || 'Contraseña incorrecta';
+        document.getElementById('lock-password').value = '';
+        document.getElementById('lock-password').focus();
+        return;
+      }
+      vaultToken = data.token;
+      document.getElementById('lock-overlay').classList.add('hidden');
+      document.getElementById('app').classList.remove('locked');
+      load();
+      loadVault();
+    } catch {
+      errEl.textContent = 'Sin conexión con el servidor. Intenta de nuevo.';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Entrar';
+    }
+  }
+  document.getElementById('lock-password').addEventListener('keydown', e => { if (e.key === 'Enter') tryUnlock(); });
+  document.getElementById('lock-password').focus();
+
+  // ═══════════════════ Vault (contraseñas) ═══════════════════
+  function vaultHeaders() {
+    return { 'Content-Type': 'application/json', 'x-home-vault-token': vaultToken };
+  }
+
+  async function loadVault() {
+    try {
+      const res = await fetch(VAULT_URL, { headers: vaultHeaders() });
+      if (res.status === 401) { lockAgain(); return; }
+      const data = await res.json();
+      vaultEntries = data.entries || [];
+    } catch {
+      vaultEntries = [];
+    }
+    renderVault();
+  }
+
+  function lockAgain() {
+    vaultToken = null;
+    document.getElementById('lock-overlay').classList.remove('hidden');
+    document.getElementById('app').classList.add('locked');
+    document.getElementById('lock-password').value = '';
+    document.getElementById('lock-error').textContent = 'La sesión expiró, vuelve a entrar.';
+  }
+
+  async function persistVault() {
+    renderVault();
+    try {
+      const res = await fetch(VAULT_URL, { method: 'PUT', headers: vaultHeaders(), body: JSON.stringify(vaultEntries) });
+      if (res.status === 401) lockAgain();
+    } catch {
+      alert('No se pudo guardar en el servidor (sin conexión). Vuelve a intentarlo.');
+    }
+  }
+
+  function uid() { return Math.random().toString(36).slice(2, 10); }
+
+  function renderVault() {
+    const grid = document.getElementById('vault-grid');
+    grid.innerHTML = '';
+
+    vaultEntries.forEach(entry => {
+      const wrap = document.createElement('div');
+      wrap.className = 'card-wrap';
+
+      const card = document.createElement('div');
+      card.className = 'card vault-card';
+      card.style.setProperty('--card-color', entry.color || COLORS[0]);
+      card.onclick = () => openVaultView(entry.id);
+      card.innerHTML = `
+        <div class="card-icon" style="background:${hexAlpha(entry.color||COLORS[0],.15)}"><span>${entry.icon||'🔑'}</span></div>
+        <div class="card-name">${esc(entry.name)} <span class="vault-count">${(entry.accounts||[]).length}</span></div>
+        ${entry.url ? `<div class="card-url">${esc(entry.url)}</div>` : ''}
+      `;
+      wrap.appendChild(card);
+      grid.appendChild(wrap);
+    });
+
+    const btn = document.createElement('div');
+    btn.className = 'add-card';
+    btn.onclick = () => openVaultSiteModal(null);
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg><span>Agregar sitio</span>`;
+    grid.appendChild(btn);
+  }
+
+  function copyToClipboard(text, btnEl) {
+    navigator.clipboard.writeText(text).then(() => {
+      const original = btnEl.textContent;
+      btnEl.textContent = '✓';
+      btnEl.classList.add('copied');
+      setTimeout(() => { btnEl.textContent = original; btnEl.classList.remove('copied'); }, 1200);
+    });
+  }
+  function copyValueOf(elId, btnEl) {
+    const el = document.getElementById(elId);
+    copyToClipboard(el.dataset.value || '', btnEl);
+  }
+
+  // ── Ver cuentas de un sitio ──
+  function openVaultView(id) {
+    currentVaultId = id;
+    const entry = vaultEntries.find(e => e.id === id);
+    if (!entry) return;
+    document.getElementById('vv-title').textContent = `${entry.icon||'🔑'} ${entry.name}`;
+    renderAccounts(entry);
+    document.getElementById('vault-view-modal').classList.add('open');
+  }
+  function closeVaultView() { document.getElementById('vault-view-modal').classList.remove('open'); }
+
+  function renderAccounts(entry) {
+    const box = document.getElementById('vv-accounts');
+    const accounts = entry.accounts || [];
+    if (!accounts.length) {
+      box.innerHTML = '<p class="empty-hint">Sin cuentas guardadas todavía.</p>';
+      return;
+    }
+    box.innerHTML = accounts.map(acc => `
+      <div class="account-row">
+        <div class="account-row-top">
+          <div class="account-label">${esc(acc.label || 'Cuenta')}</div>
+          <div class="account-row-actions">
+            <button class="icon-btn" title="Editar" onclick="openAccountModal('${acc.id}')">✎</button>
+            <button class="icon-btn" title="Eliminar" onclick="deleteAccount('${acc.id}')">🗑</button>
+          </div>
+        </div>
+        <div class="account-field">
+          <label>Usuario</label>
+          <div class="value" id="user-${acc.id}" data-value="${esc(acc.username || '')}">${esc(acc.username || '')}</div>
+          <button class="icon-btn" title="Copiar usuario" onclick="copyValueOf('user-${acc.id}', this)">⧉</button>
+        </div>
+        <div class="account-field">
+          <label>Clave</label>
+          <div class="value" id="pw-${acc.id}" data-value="${esc(acc.password||'')}">••••••••</div>
+          <button class="icon-btn" title="Mostrar/ocultar" onclick="togglePassword('${acc.id}')">👁</button>
+          <button class="icon-btn" title="Copiar clave" onclick="copyValueOf('pw-${acc.id}', this)">⧉</button>
+        </div>
+        ${acc.notes ? `<div class="account-field"><label>Notas</label><div class="value">${esc(acc.notes)}</div></div>` : ''}
+      </div>
+    `).join('');
+  }
+
+  function togglePassword(id) {
+    const el = document.getElementById('pw-' + id);
+    const shown = el.dataset.shown === '1';
+    el.textContent = shown ? '••••••••' : el.dataset.value;
+    el.dataset.shown = shown ? '0' : '1';
+  }
+
+  // ── Sitio: agregar / editar / eliminar ──
+  function openVaultSiteModal(id) {
+    closeVaultView();
+    vsEditId = id;
+    const entry = id ? vaultEntries.find(e => e.id === id) : null;
+    vsSelected = { emoji: entry?.icon || '🔑', color: entry?.color || COLORS[0] };
+    document.getElementById('vs-title').textContent = entry ? 'Editar sitio' : 'Agregar sitio';
+    document.getElementById('vs-name').value = entry?.name || '';
+    document.getElementById('vs-url').value  = entry?.url  || '';
+    document.getElementById('vs-delete').style.display = entry ? '' : 'none';
+    buildVsEmojiGrid(); buildVsColorGrid();
+    document.getElementById('vault-site-modal').classList.add('open');
+    document.getElementById('vs-name').focus();
+  }
+  function closeVaultSiteModal() { document.getElementById('vault-site-modal').classList.remove('open'); }
+
+  function buildVsEmojiGrid() {
+    document.getElementById('vs-emoji-grid').innerHTML =
+      EMOJIS.map(e => `<div class="emoji-opt ${e===vsSelected.emoji?'selected':''}" onclick="vsSelected.emoji='${e}';buildVsEmojiGrid()">${e}</div>`).join('');
+  }
+  function buildVsColorGrid() {
+    document.getElementById('vs-color-grid').innerHTML =
+      COLORS.map(c => `<div class="color-opt ${c===vsSelected.color?'selected':''}" style="background:${c}" onclick="vsSelected.color='${c}';buildVsColorGrid()"></div>`).join('');
+  }
+
+  function saveVaultSite() {
+    const name = document.getElementById('vs-name').value.trim();
+    if (!name) return;
+    const url = document.getElementById('vs-url').value.trim();
+    if (vsEditId) {
+      const entry = vaultEntries.find(e => e.id === vsEditId);
+      Object.assign(entry, { name, url, icon: vsSelected.emoji, color: vsSelected.color });
+    } else {
+      vaultEntries.push({ id: uid(), name, url, icon: vsSelected.emoji, color: vsSelected.color, accounts: [] });
+    }
+    closeVaultSiteModal();
+    persistVault();
+  }
+
+  function deleteVaultSite() {
+    if (!vsEditId) return;
+    const entry = vaultEntries.find(e => e.id === vsEditId);
+    if (!confirm(`¿Eliminar "${entry.name}" y todas sus cuentas guardadas?`)) return;
+    vaultEntries = vaultEntries.filter(e => e.id !== vsEditId);
+    closeVaultSiteModal();
+    persistVault();
+  }
+
+  // ── Cuenta: agregar / editar / eliminar ──
+  function openAccountModal(accountId) {
+    editingAccountId = accountId;
+    const entry = vaultEntries.find(e => e.id === currentVaultId);
+    const acc = accountId ? entry.accounts.find(a => a.id === accountId) : null;
+    document.getElementById('am-title').textContent = acc ? 'Editar cuenta' : 'Agregar cuenta';
+    document.getElementById('am-label').value    = acc?.label    || '';
+    document.getElementById('am-username').value = acc?.username || '';
+    document.getElementById('am-password').value = acc?.password || '';
+    document.getElementById('am-notes').value    = acc?.notes    || '';
+    document.getElementById('account-modal').classList.add('open');
+    document.getElementById('am-label').focus();
+  }
+  function closeAccountModal() { document.getElementById('account-modal').classList.remove('open'); }
+
+  function generatePassword() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
+    const bytes = new Uint32Array(16);
+    crypto.getRandomValues(bytes);
+    const pwd = Array.from(bytes, b => chars[b % chars.length]).join('');
+    document.getElementById('am-password').value = pwd;
+  }
+
+  function saveAccount() {
+    const entry = vaultEntries.find(e => e.id === currentVaultId);
+    if (!entry) return;
+    const label    = document.getElementById('am-label').value.trim() || 'Cuenta';
+    const username = document.getElementById('am-username').value.trim();
+    const password = document.getElementById('am-password').value;
+    const notes    = document.getElementById('am-notes').value.trim();
+    entry.accounts = entry.accounts || [];
+    if (editingAccountId) {
+      const acc = entry.accounts.find(a => a.id === editingAccountId);
+      Object.assign(acc, { label, username, password, notes });
+    } else {
+      entry.accounts.push({ id: uid(), label, username, password, notes });
+    }
+    closeAccountModal();
+    renderAccounts(entry);
+    persistVault();
+  }
+
+  function deleteAccount(accountId) {
+    const entry = vaultEntries.find(e => e.id === currentVaultId);
+    if (!entry) return;
+    if (!confirm('¿Eliminar esta cuenta?')) return;
+    entry.accounts = entry.accounts.filter(a => a.id !== accountId);
+    renderAccounts(entry);
+    persistVault();
+  }
 </script>
 </body>
 </html>
