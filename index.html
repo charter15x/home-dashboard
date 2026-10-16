@@ -445,14 +445,13 @@
     { name: 'Coolify',      url: 'http://192.168.1.166:8001/',                         desc: 'Servidor Mac mini (solo en casa)',  icon: '🖥️', color: '#7c3aed' },
     { name: 'OrthoClinic', url: 'https://portal.clinicaderodillas.net/',              desc: 'Sistema de consultas ortopédicas',  icon: '🏥', color: '#6366f1' },
     { name: 'MedRemind',   url: 'https://medremind.clinicaderodillas.net/',       desc: 'Recordatorios médicos',             icon: '💊', color: '#22c55e' },
-    { name: 'Dashboard',   url: 'https://dashboard.clinicaderodillas.net/', desc: 'Censo hospitalario',                icon: '📊', color: '#f97316' },
+    { name: 'Dashboard',   url: 'https://dashboard.api-mx.xyz/', desc: 'Censo hospitalario',                icon: '📊', color: '#f97316' },
     { name: 'WhatsSender', url: 'https://whatsender.clinicaderodillas.net/',    desc: 'Envío masivo de WhatsApp',          icon: '💬', color: '#25d366' },
     { name: 'Twilio',      url: 'https://www.twilio.com/login',                      desc: 'Mensajería y comunicaciones',       icon: '📡', color: '#f22f46' },
   ];
 
   const API_URL   = 'https://portal.clinicaderodillas.net/api/home-cards';
-  // la API de la bóveda vive en el mismo dominio que el panel (clinicaderodillas.net o api-mx.xyz)
-  const VAULT_BASE      = location.hostname.endsWith('api-mx.xyz') ? 'https://vault.api-mx.xyz' : 'https://vault.clinicaderodillas.net';
+  const VAULT_BASE      = 'https://vault.api-mx.xyz';
   const VAULT_LOGIN_URL = VAULT_BASE + '/login';
   const VAULT_URL       = VAULT_BASE + '/vault';
   const TOKEN_KEY = 'home-dashboard-token';
