@@ -451,8 +451,10 @@
   ];
 
   const API_URL   = 'https://portal.clinicaderodillas.net/api/home-cards';
-  const VAULT_LOGIN_URL = 'https://vault.clinicaderodillas.net/login';
-  const VAULT_URL       = 'https://vault.clinicaderodillas.net/vault';
+  // la API de la bóveda vive en el mismo dominio que el panel (clinicaderodillas.net o api-mx.xyz)
+  const VAULT_BASE      = location.hostname.endsWith('api-mx.xyz') ? 'https://vault.api-mx.xyz' : 'https://vault.clinicaderodillas.net';
+  const VAULT_LOGIN_URL = VAULT_BASE + '/login';
+  const VAULT_URL       = VAULT_BASE + '/vault';
   const TOKEN_KEY = 'home-dashboard-token';
 
   let cards = [];
